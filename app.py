@@ -44,7 +44,7 @@ model = genai.GenerativeModel(
 )
 
 #page confirmation
-st.set_page_config(page_title="VitalImage Analytics",page_icon=":robot:")
+st.set_page_config(page_title="Aarogyam",page_icon=":robot:")
 
 #set logo
 st.image("health-logo.png",width=200)
@@ -53,11 +53,11 @@ st.image("health-logo.png",width=200)
 st.title("Aarogyam")
 
 #set subheading
-st.subheader("An application that can help us to identify medical images")
+st.subheader("An AI application that help people to get an about the disease by just using it's images!")
 uploaded_file = st.file_uploader("Upload the medical image for analysis", type=["png", "jpg", "jpeg"])
 if uploaded_file:
-    st.image(uploaded_file, width=200, caption="Uploaded medical image")
-submit_button = st.button("Generate the analysis")
+    st.image(uploaded_file, width=200, caption="Uploaded image")
+submit_button = st.button("Analyze!")
 
 if submit_button:
     #process the image
@@ -77,6 +77,6 @@ if submit_button:
         system_prompt,
     ]
     #generate response based on prompt and image
-    st.title("Here is the analysis based on your image: ")
+    st.title("Analysis on the basis of the provided image: ")
     response = model.generate_content(prompt_parts)
     st.write(response.text)
