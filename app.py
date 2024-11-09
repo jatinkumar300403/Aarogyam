@@ -7,6 +7,7 @@ from geopy.geocoders import Nominatim
 import requests
 import speech_recognition as sr
 import pyttsx3
+from gtts import gTTS
 import re  # For regular expression matching
 
 # Configure genai with API key
@@ -99,9 +100,12 @@ def recognize_speech():
 
 # Function to convert text to speech
 def speak(text):
-    engine = pyttsx3.init()
-    engine.say(text)
-    engine.runAndWait()
+    # Generate speech using gTTS
+    tts = gTTS(text=text, lang="en")
+    tts.save("output.mp3")
+
+    # Streamlit can play the audio
+    st.audio("output.mp3", format="audio/mp3")
 
 # Function to fetch nearest hospital and area details
 def get_nearest_hospital(location):
