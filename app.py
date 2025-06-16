@@ -9,6 +9,12 @@ import speech_recognition as sr
 import pyttsx3
 from gtts import gTTS
 import re  # For regular expression matching
+from dotenv import load_dotenv
+import os
+
+
+load_dotenv()
+api_key = os.getenv("GEMINI_API_KEY")
 
 # Configure genai with API key
 genai.configure(api_key=api_key)
