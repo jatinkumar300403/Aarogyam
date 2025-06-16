@@ -1,25 +1,21 @@
 import streamlit as st
 from pathlib import Path
 import google.generativeai as genai
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 from geopy.geocoders import Nominatim
 import requests
 import speech_recognition as sr
 import pyttsx3
 from gtts import gTTS
 import re  # For regular expression matching
-from dotenv import load_dotenv
-import os
 
-
-load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = st.secrets["GEMINI_API_KEY"]
 
 # Configure genai with API key
 genai.configure(api_key=api_key)
 
 # Initialize the translator
-translator = Translator()
+# translator = Translator()
 
 # Create the model
 generation_config = {
@@ -51,7 +47,7 @@ Please provide me an output response with these four headings: **Detailed Analys
 
 # Model config
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-pro",
+    model_name="gemini-1.5-flash",
     generation_config=generation_config,
 )
 
@@ -230,8 +226,6 @@ if st.session_state["generated_text"]:
 
     if translate_button:
         # Translate the text
-        translated_text = translator.translate(
-            st.session_state["generated_text"], src="en", dest=languages[selected_language]
-        ).text
+        translated_text = GoogleTranslator(source='auto', target=languages[selected_language]).translate(st.session_state["generated_text"])
         st.write(f"Translated Text in {selected_language}:")
         st.write(translated_text)
