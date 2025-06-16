@@ -7,17 +7,12 @@ import requests
 import speech_recognition as sr
 import pyttsx3
 from gtts import gTTS
-import re  # For regular expression matching
+import re
 
 api_key = st.secrets["GEMINI_API_KEY"]
 
-# Configure genai with API key
 genai.configure(api_key=api_key)
 
-# Initialize the translator
-# translator = Translator()
-
-# Create the model
 generation_config = {
     "temperature": 0.4,
     "top_p": 1,
@@ -45,13 +40,12 @@ Important Notes:
 Please provide me an output response with these four headings: **Detailed Analysis**, **Findings Report**, **Recommendations and Next Steps**, **Treatment Suggestions**.
 """
 
-# Model config
 model = genai.GenerativeModel(
     model_name="gemini-1.5-flash",
     generation_config=generation_config,
 )
 
-# Function to fetch user's approximate location
+#location
 def get_user_location():
     try:
         # Using IP-based geolocation
@@ -62,7 +56,6 @@ def get_user_location():
     except Exception as e:
         return "Unknown"
 
-# Map location to default language
 def get_default_language(location):
     location_language_map = {
         "Delhi": "Hindi",
@@ -213,7 +206,7 @@ if st.session_state["generated_text"]:
         "Punjabi": "pa",
     }
 
-    st.write(f"Detected Location: **{user_location}** ")
+    # st.write(f"Detected Location: **{user_location}** ")
 
     # Use default language or allow override
     selected_language = st.selectbox(
