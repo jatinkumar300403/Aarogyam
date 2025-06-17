@@ -7,3 +7,4 @@ SpeechRecognition
 pyttsx3
 gTTS
 python-dotenv
+opencage
