@@ -2,6 +2,7 @@ import streamlit as st
 from pathlib import Path
 import google.generativeai as genai
 from deep_translator import GoogleTranslator
+# from geopy.geocoders import Nominatim
 from opencage.geocoder import OpenCageGeocode
 import requests
 import speech_recognition as sr
@@ -179,16 +180,16 @@ if uploaded_file:
         urgency = "High" 
         hospital_details = get_nearest_hospital()
         
-        if hospital_details:
-            with st.sidebar:
-                st.subheader("Nearest Hospital Info 🏥")
-                st.write(f"**Name:** {hospital_details['name']}")
-                st.write(f"**Area:** {hospital_details['area']}")
-                st.write(f"**Phone:** {hospital_details['phone']}")
-        else:
-            with st.sidebar:
-                st.subheader("Nearest Hospital Info 🏥")
-                st.write("Unable to determine hospital details based on your location.")
+        # if hospital_details:
+        #     with st.sidebar:
+        #         st.subheader("Nearest Hospital Info 🏥")
+        #         st.write(f"**Name:** {hospital_details['name']}")
+        #         st.write(f"**Area:** {hospital_details['area']}")
+        #         st.write(f"**Phone:** {hospital_details['phone']}")
+        # else:
+        #     with st.sidebar:
+        #         st.subheader("Nearest Hospital Info 🏥")
+        #         st.write("Unable to determine hospital details based on your location.")
 
         if hospital_details:
             give_speech_dictation(disease_name, urgency, hospital_details)
