@@ -1,11 +1,9 @@
 streamlit
 google-generativeai
-deep-translator
-geopy
-requests
-SpeechRecognition
-pyttsx3
-gTTS
-python-dotenv
 opencage
-streamlit-js-eval
+gTTS
+SpeechRecognition
+deep-translator
+python-docx
+PyMuPDF
+requests
