@@ -124,18 +124,20 @@ if image_file and not report_file:
         st.error("❌ Please upload only image files (JPG, JPEG, PNG).")
     else:
         if st.button("Analyze Image"):
-            image_data = image_file.getvalue()
-            prompt_parts = [{"mime_type": image_file.type, "data": image_data}, system_prompt_image]
-            response = model.generate_content(prompt_parts)
-            st.session_state["generated_text"] = response.text
-            st.markdown(st.session_state["generated_text"])
+            with st.spinner("🔍 Analyzing the medical image... Please wait."):
+                image_data = image_file.getvalue()
+                prompt_parts = [{"mime_type": image_file.type, "data": image_data}, system_prompt_image]
+                response = model.generate_content(prompt_parts)
+                st.session_state["generated_text"] = response.text
+                st.markdown(st.session_state["generated_text"])
 
-            disease_name = extract_disease_name(response.text)
-            hospital = get_nearest_hospital()
-            if hospital:
-                give_speech_dictation(disease_name, "High", hospital)
-            else:
-                st.warning("Unable to find nearby hospitals.")
+                disease_name = extract_disease_name(response.text)
+                hospital = get_nearest_hospital()
+                if hospital:
+                    give_speech_dictation(disease_name, "High", hospital)
+                else:
+                    st.warning("Unable to find nearby hospitals.")
+
 
 elif report_file and not image_file:
     if report_file.type == "application/pdf":
@@ -149,17 +151,19 @@ elif report_file and not image_file:
         report_text = ""
 
     if report_text and st.button("Analyze Report"):
-        prompt = f"{system_prompt_report}\n\n{report_text}"
-        response = model.generate_content(prompt)
-        st.session_state["generated_text"] = response.text
-        st.markdown(st.session_state["generated_text"])
+        with st.spinner("📄 Analyzing the health report... Please wait."):
+            prompt = f"{system_prompt_report}\n\n{report_text}"
+            response = model.generate_content(prompt)
+            st.session_state["generated_text"] = response.text
+            st.markdown(st.session_state["generated_text"])
 
-        disease_name = extract_disease_name(response.text)
-        hospital = get_nearest_hospital()
-        if hospital:
-            give_speech_dictation(disease_name, "Medium", hospital)
-        else:
-            st.warning("Unable to find nearby hospitals.")
+            disease_name = extract_disease_name(response.text)
+            hospital = get_nearest_hospital()
+            if hospital:
+                give_speech_dictation(disease_name, "Medium", hospital)
+            else:
+                st.warning("Unable to find nearby hospitals.")
+
 
 elif image_file and report_file:
     st.error("❌ Please upload either a medical image or a health report, not both.")
