@@ -19,7 +19,7 @@ generation_config = {
     "max_output_tokens": 4096,
 }
 
-MODEL_NAME = "models/gemini-2.5-flash"
+MODEL_NAME = "models/gemini-2.5-flash-lite"
 
 system_prompt_image = """
 As a highly skilled medical practitioner specializing in image analysis, analyze this medical image.
