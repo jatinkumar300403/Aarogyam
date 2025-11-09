@@ -6,7 +6,6 @@ google-genai>=1.0.0
 deep-translator
 gTTS
 SpeechRecognition
-pyaudio
 python-docx
 PyMuPDF
 opencage
