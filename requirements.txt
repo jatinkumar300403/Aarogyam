@@ -1,9 +1,12 @@
-streamlit
-google-generativeai
-opencage
+streamlit>=1.38.0
+requests
+protobuf>=4.25.0
+pillow
+google-genai>=1.0.0
+deep-translator
 gTTS
 SpeechRecognition
-deep-translator
+pyaudio
 python-docx
 PyMuPDF
-requests
+opencage

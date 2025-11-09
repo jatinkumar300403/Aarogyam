@@ -1,20 +1,17 @@
 import streamlit as st
 from pathlib import Path
-import google.generativeai as genai
+import google.genai as genai
 from deep_translator import GoogleTranslator
 from opencage.geocoder import OpenCageGeocode
-import requests
-import speech_recognition as sr
+import requests, re, os, docx, fitz
 from gtts import gTTS
-import re
-import docx
-import fitz
 
 api_key = st.secrets["GEMINI_API_KEY"]
 OPENCAGE_API_KEY = st.secrets["OPENCAGE_API_KEY"]
 geocoder = OpenCageGeocode(OPENCAGE_API_KEY)
 
-genai.configure(api_key=api_key)
+client = genai.Client(api_key=api_key)
+
 generation_config = {
     "temperature": 0.4,
     "top_p": 1,
@@ -22,56 +19,45 @@ generation_config = {
     "max_output_tokens": 4096,
 }
 
+MODEL_NAME = "models/gemini-2.5-flash"
+
 system_prompt_image = """
-As a highly skilled medical practitioner specializing in image analysis, you are tasked with examining medical images for a renowned hospital. Your expertise is crucial in identifying any anomalies, diseases, or health issues that may be present in the image.
+As a highly skilled medical practitioner specializing in image analysis, analyze this medical image.
 
-Your Responsibility:
-
-1. **Give the name of the disease as the heading in bold letters.**
-2. **Detailed Analysis:** Thoroughly analyze each image, focusing on identifying any abnormal findings.
-3. **Findings Report:** Document all observed anomalies or signs of disease. Clearly articulate these findings in a structured format.
-4. **Recommendations and Next Steps:** Based on your analysis, suggest potential next steps, including further tests or treatments as applicable.
-5. **Treatment Suggestions:** If appropriate, recommend possible treatment options or interventions.
-
-Important Notes:
-- Scope of Response: Only respond if the image pertains to human health issues.
-- Clarity of Images: In cases where the image quality impedes clear analysis, note that certain aspects are 'Unable to be determined based on the provided image'.
-- Disclaimer: Accompany your analysis with a disclaimer: "Consult with a doctor before making any decisions."
-
-Please provide me an output response with these four headings: **Detailed Analysis**, **Findings Report**, **Recommendations and Next Steps**, **Treatment Suggestions**.
+Responsibilities:
+1. **Give the disease name as a bold heading.**
+2. **Detailed Analysis:** Explain visual indicators or abnormalities.
+3. **Findings Report:** Summarize significant observations.
+4. **Recommendations and Next Steps:** Suggest further tests or referrals.
+5. **Treatment Suggestions:** Mention possible interventions.
+Add disclaimer: "Consult with a doctor before making any decisions."
 """
 
 system_prompt_report = """
-You are a highly experienced medical doctor. Please thoroughly analyze the patient's uploaded health report. Focus on identifying key medical conditions, abnormalities, or issues.
+You are a highly experienced medical doctor analyzing a patient’s health report.
 
-Your Responsibility:
-
-1. **Give the name of the condition or disease as the heading in bold letters.**
-2. **Detailed Analysis:** Explain relevant test values and what they imply medically.
-3. **Findings Report:** Highlight any abnormal or significant findings.
-4. **Recommendations and Next Steps:** Suggest further investigations, lifestyle changes, or specialist referrals.
-5. **Treatment Suggestions:** Include any applicable treatments or therapies.
-
+Responsibilities:
+1. **Give the condition/disease as a bold heading.**
+2. **Detailed Analysis:** Explain test values and implications.
+3. **Findings Report:** Highlight abnormal or critical findings.
+4. **Recommendations and Next Steps:** Suggest follow-ups or tests.
+5. **Treatment Suggestions:** Mention therapies or lifestyle advice.
 End with: "Consult with a doctor before making any decisions."
 """
 
-model = genai.GenerativeModel(model_name="gemini-1.5-flash", generation_config=generation_config)
-
-# Utilities
 def get_user_location():
     try:
-        data = requests.get("https://ipinfo.io").json()
-        return data.get("city", "Unknown")
+        return requests.get("https://ipinfo.io").json().get("city", "Unknown")
     except:
         return "Unknown"
 
-def get_default_language(location):
+def get_default_language(city):
     mapping = {
         "Delhi": "Hindi", "Mumbai": "Hindi", "Chennai": "Tamil", "Kolkata": "Bengali",
         "Hyderabad": "Telugu", "Bangalore": "Kannada", "Ahmedabad": "Gujarati",
         "Pune": "Marathi", "Thiruvananthapuram": "Malayalam", "Amritsar": "Punjabi",
     }
-    return mapping.get(location, "English")
+    return mapping.get(city, "English")
 
 def speak(text):
     tts = gTTS(text=text, lang="en")
@@ -84,120 +70,144 @@ def get_nearest_hospital():
         if not loc:
             return None
         lat, lon = map(float, loc.split(","))
-        results = geocoder.reverse_geocode(lat, lon)
-        if results:
-            components = results[0]['components']
-            area = components.get('city') or components.get('county') or "Unknown Area"
-            return {
-                "name": "City Medical Center", "area": area, "phone": "+1-234-567-8901",
-                "latitude": lat, "longitude": lon
-            }
+        res = geocoder.reverse_geocode(lat, lon)
+        if res:
+            area = res[0]["components"].get("city") or res[0]["components"].get("county") or "Unknown Area"
+            return {"name": "City Medical Center", "area": area, "phone": "+1-234-567-8901"}
         return None
     except:
         return None
 
 def extract_disease_name(text):
-    match = re.search(r"\*\*(.*?)\*\*", text)
-    return match.group(1) if match else "Unknown"
+    if not isinstance(text, str): return "Unknown"
+    m = re.search(r"\*\*(.*?)\*\*", text)
+    return m.group(1) if m else "Unknown"
 
-def give_speech_dictation(disease_name, urgency, hospital_details):
-    msg = f"Disease: {disease_name}, Urgency of treatment: {urgency}."
-    speak(msg)
-    st.write(msg)
-st.set_page_config(page_title="Aarogyam", page_icon=":robot:")
-st.image("health-logo.png", width=200)
-st.title("Aarogyam")
-st.subheader("AI tool to analyze medical images or health reports.")
-
-if "generated_text" not in st.session_state:
-    st.session_state["generated_text"] = ""
-
-user_location = get_user_location()
-default_language = get_default_language(user_location)
-st.markdown("### 📷 Upload Medical Image")
-image_file = st.file_uploader("Upload an image (JPG, PNG, JPEG)", type=["png", "jpg", "jpeg"], key="image_uploader")
-
-st.markdown("### 📄 Upload Health Report (PDF or DOCX)")
-report_file = st.file_uploader("Upload a health report", type=["pdf", "docx"], key="report_uploader")
-if image_file and not report_file:
-    if image_file.type not in ["image/jpeg", "image/png", "image/jpg"]:
-        st.error("❌ Please upload only image files (JPG, JPEG, PNG).")
-    else:
-        if st.button("Analyze Image"):
-            with st.spinner("🔍 Analyzing the medical image... Please wait."):
-                image_data = image_file.getvalue()
-                prompt_parts = [{"mime_type": image_file.type, "data": image_data}, system_prompt_image]
-                response = model.generate_content(prompt_parts)
-                st.session_state["generated_text"] = response.text
-                st.markdown(st.session_state["generated_text"])
-
-                disease_name = extract_disease_name(response.text)
-                hospital = get_nearest_hospital()
-                if hospital:
-                    give_speech_dictation(disease_name, "High", hospital)
-                else:
-                    st.warning("Unable to find nearby hospitals.")
-
-
-elif report_file and not image_file:
-    if report_file.type == "application/pdf":
-        pdf = fitz.open(stream=report_file.read(), filetype="pdf")
-        report_text = "\n".join(page.get_text() for page in pdf)
-    elif report_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        doc = docx.Document(report_file)
-        report_text = "\n".join(p.text for p in doc.paragraphs)
-    else:
-        st.error("❌ Invalid health report file.")
-        report_text = ""
-
-    if report_text and st.button("Analyze Report"):
-        with st.spinner("📄 Analyzing the health report... Please wait."):
-            prompt = f"{system_prompt_report}\n\n{report_text}"
-            response = model.generate_content(prompt)
-            st.session_state["generated_text"] = response.text
-            st.markdown(st.session_state["generated_text"])
-
-            disease_name = extract_disease_name(response.text)
-            hospital = get_nearest_hospital()
-            if hospital:
-                give_speech_dictation(disease_name, "Medium", hospital)
-            else:
-                st.warning("Unable to find nearby hospitals.")
-
-
-elif image_file and report_file:
-    st.error("❌ Please upload either a medical image or a health report, not both.")
+def give_speech_dictation(disease, urgency, hospital):
+    msg = f"Disease: {disease}, Urgency of treatment: {urgency}."
+    speak(msg); st.write(msg)
 
 def split_text(text, max_chars=5000):
     chunks = []
     while len(text) > max_chars:
-        split_at = text.rfind("\n", 0, max_chars)
-        if split_at == -1:
-            split_at = text.rfind(" ", 0, max_chars)
-        if split_at == -1:
-            split_at = max_chars
-        chunks.append(text[:split_at])
-        text = text[split_at:]
+        i = text.rfind("\n", 0, max_chars)
+        if i == -1: i = text.rfind(" ", 0, max_chars)
+        if i == -1: i = max_chars
+        chunks.append(text[:i]); text = text[i:]
     chunks.append(text)
     return chunks
 
+st.set_page_config(page_title="Aarogyam", page_icon=":robot_face:")
+st.image("health-logo.png", width=200)
+st.title("Aarogyam")
+st.subheader("AI tool to analyze medical images or health reports")
+
+if "generated_text" not in st.session_state:
+    st.session_state["generated_text"] = ""
+
+city = get_user_location()
+default_lang = get_default_language(city)
+
+st.markdown("### 📷 Upload Medical Image")
+image_file = st.file_uploader("Upload an image (JPG, PNG, JPEG)", type=["png","jpg","jpeg"], key="img")
+
+st.markdown("### 📄 Upload Health Report (PDF or DOCX)")
+report_file = st.file_uploader("Upload a health report", type=["pdf","docx"], key="rep")
+
+if image_file and not report_file:
+    if st.button("Analyze Image"):
+        with st.spinner("🔍 Analyzing image..."):
+            tmp = Path(image_file.name)
+            with open(tmp, "wb") as f: f.write(image_file.getvalue())
+            uploaded = client.files.upload(file=tmp)
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=[{"role": "user","parts":[
+                    {"file_data":{"file_uri": uploaded.uri}},
+                    {"text": system_prompt_image}
+                ]}],
+                config=generation_config,
+            )
+            text = getattr(response, "text", None) or "⚠️ No analysis result returned by Gemini."
+            st.session_state["generated_text"] = text
+            st.markdown(text)
+            if "⚠️" not in text:
+                disease = extract_disease_name(text)
+                hosp = get_nearest_hospital()
+                if hosp: give_speech_dictation(disease,"High",hosp)
+            if os.path.exists(tmp): os.remove(tmp)
+
+elif report_file and not image_file:
+    report_text = ""
+    if report_file.type == "application/pdf":
+        pdf = fitz.open(stream=report_file.read(), filetype="pdf")
+        report_text = "\n".join(page.get_text("text") for page in pdf)
+    elif report_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        doc = docx.Document(report_file)
+        report_text = "\n".join(p.text for p in doc.paragraphs)
+
+    report_text = re.sub(r"\s+", " ", report_text).strip()
+    if report_text:
+        st.text_area("Extracted Report Text (preview):", report_text[:1500], height=200)
+        if st.button("Analyze Report"):
+            with st.spinner("📄 Analyzing large report..."):
+
+                max_chunk_size = 6000
+                chunks = [report_text[i:i+max_chunk_size] for i in range(0,len(report_text),max_chunk_size)]
+                analyses = []
+
+                for i, chunk in enumerate(chunks,1):
+                    st.write(f"🔹 Processing section {i}/{len(chunks)}...")
+                    res = client.models.generate_content(
+                        model=MODEL_NAME,
+                        contents=[{"role":"user","parts":[
+                            {"text": f"{system_prompt_report}\n\n---\nSection {i} of {len(chunks)}:\n{chunk}"}
+                        ]}],
+                        config=generation_config,
+                    )
+                    analyses.append(getattr(res,"text",f"⚠️ No output for section {i}"))
+
+                combined = "\n\n".join(analyses)
+
+                summary_prompt = f"""
+                Combine and summarize the following medical analyses into one structured report.
+                Use headings: **Detailed Analysis**, **Findings Report**, **Recommendations and Next Steps**, **Treatment Suggestions**.
+                Stay under 4000 tokens.
+
+                Analyses:
+                {combined}
+                """
+                final = client.models.generate_content(
+                    model=MODEL_NAME,
+                    contents=[{"role":"user","parts":[{"text": summary_prompt}]}],
+                    config=generation_config,
+                )
+
+                text = getattr(final,"text",None) or "⚠️ No final summary returned by Gemini."
+                st.session_state["generated_text"] = text
+                st.markdown(text)
+
+                if "⚠️" not in text:
+                    disease = extract_disease_name(text)
+                    hosp = get_nearest_hospital()
+                    if hosp: give_speech_dictation(disease,"Medium",hosp)
+    else:
+        st.warning("No readable text found in uploaded file.")
+
+elif image_file and report_file:
+    st.error("❌ Please upload either a medical image or a health report, not both.")
+
 if st.session_state["generated_text"]:
     st.markdown("### 🌐 Translate the Analysis")
-    languages = {
-        "English": "en", "Hindi": "hi", "Bengali": "bn", "Tamil": "ta", "Telugu": "te",
-        "Marathi": "mr", "Gujarati": "gu", "Kannada": "kn", "Malayalam": "ml", "Punjabi": "pa",
+    langs = {
+        "English":"en","Hindi":"hi","Bengali":"bn","Tamil":"ta","Telugu":"te",
+        "Marathi":"mr","Gujarati":"gu","Kannada":"kn","Malayalam":"ml","Punjabi":"pa",
     }
-    selected_language = st.selectbox("Select language", list(languages.keys()),
-                                     index=list(languages.keys()).index(default_language))
-
+    lang = st.selectbox("Select language", list(langs.keys()),
+                        index=list(langs.keys()).index(default_lang))
     if st.button("Translate"):
-        full_text = st.session_state["generated_text"]
-        chunks = split_text(full_text)
-        translated_parts = []
-        for chunk in chunks:
-            translated_chunk = GoogleTranslator(source='auto', target=languages[selected_language]).translate(chunk)
-            translated_parts.append(translated_chunk)
-        translated_text = "\n".join(translated_parts)
-
-        st.markdown(f"**Translated in {selected_language}:**")
-        st.write(translated_text)
+        txt = st.session_state["generated_text"]
+        parts = split_text(txt)
+        translated = "\n".join(GoogleTranslator(source='auto', target=langs[lang]).translate(p) for p in parts)
+        st.markdown(f"**Translated in {lang}:**")
+        st.write(translated)
